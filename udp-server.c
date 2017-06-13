@@ -35,7 +35,7 @@
 #include "net/rpl/rpl.h"
 #include "dev/leds.h"
 #include "sys/ctimer.h"
-#include "/home/user/Documents/IDS/udp-server.h"
+#include "/home/user/Documents/IDS_Git/Master---IDS/udp-server.h"
 
 #include "net/netstack.h"
 #include "dev/button-sensor.h"
@@ -56,8 +56,9 @@
 #define UDP_EXAMPLE_ID  190
 
 static struct uip_udp_conn *server_conn;
-int negative_value;
-int positive_value;
+// int negative_value;
+// int positive_value;
+int new_data;
 int endOfIp;
 uip_ipaddr_t trustAddress;
 int (*trustValues)[3] = NULL; 
@@ -66,10 +67,8 @@ int count;
 int p;
 int n; 
 int k;
+int i;
 
-double b;
-double d;
-double u;
 
 
 
@@ -77,16 +76,14 @@ PROCESS(udp_server_process, "UDP server process");
 AUTOSTART_PROCESSES(&udp_server_process);
 
 /*---------------------------------------------------------------------------*/
-static void reactOnTrustValue(uip_ipaddr_t *trustAddress, int negative_value, int positive_value, int endOfIp)
+static void reactOnTrustValue(int negative_value, int positive_value, int endOfIp)
 {
 	int i;
 	int index; 
 	index = -1;
 	int currentIp;
-	// printf("Receiving trust about %i \n", endOfIp);
 	if(trustValues == NULL) {
 		// Initiate the trustValue.
-		// PRINTF("In Trustvalues == NULL\n");
 		count = 0;
 		trustValues = (int(*)[3])malloc(200 * 3 * sizeof(int));
 		trustValues[count][0] = endOfIp;
@@ -96,7 +93,6 @@ static void reactOnTrustValue(uip_ipaddr_t *trustAddress, int negative_value, in
 		
 		for(i = 0; i < count; i++) {
 			currentIp = trustValues[i][0];
-			// PRINTF("Forloop: Current IP: %i, Its negative valuations: %i, Its Positive valuations: %i \n", trustValues[i][0], trustValues[i][1], trustValues[i][2]);
 			if (currentIp == endOfIp) {
 				// The ip-address is already in the trustValues.
 				index = i;
@@ -106,29 +102,21 @@ static void reactOnTrustValue(uip_ipaddr_t *trustAddress, int negative_value, in
 		
 		if(index<0) {
 		// The ip-addr is not in list. reallocate memory and add it.
-			// tmp = realloc(trustValues, sizeof(int) * (count + 1) * 3);
-
-			trustValues[count + 1][0] = endOfIp;
-			trustValues[count + 1][1] = negative_value;
-			trustValues[count + 1][2] = positive_value;
+			trustValues[count + 1][0] += endOfIp;
+			trustValues[count + 1][1] += negative_value;
+			trustValues[count + 1][2] += positive_value;
 			index = count + 1;
 			count ++;
-			// PRINTF("Added ip %i to trustValues with pos: %i and neg: %i, Count: %i\n", endOfIp, positive_value, negative_value, count);
+			PRINTF("Updating trust for new IP: %i, Pos: %i, Neg: %i\n", endOfIp, positive_value, negative_value);
 
-		
 		} else {
 			// PRINTF("ip is in list! \n");
 			// Give the correct trust values.
-			if( negative_value == 1) {
-				trustValues[index][1] = (trustValues[index][1] + 1);  
-				PRINTF("Negative trust received about node %i. nTrust: %i, pTrust: %i\n", trustValues[index][0], trustValues[index][1], trustValues[index][2]);
- 
-			} else {
-				PRINTF("Positive trust received about node %i. nTrust: %i, pTrust: %i\n", trustValues[index][0], trustValues[index][1], trustValues[index][2]);
-
-				trustValues[index][2] = (trustValues[index][2] + 1);
-			}
 			
+			trustValues[index][1] += negative_value;
+			trustValues[index][2] += positive_value;
+			
+			PRINTF("Updated trust received about node %i. pTrust: %i. nTrust: %i\n", trustValues[index][0], trustValues[index][2], trustValues[index][1]);
 			n = trustValues[index][1];
 			p = trustValues[index][2];
 			k = 1;
@@ -140,8 +128,7 @@ static void reactOnTrustValue(uip_ipaddr_t *trustAddress, int negative_value, in
 			u = k / (p + n + k);
 			*/
 			if((p < n) && (k + n + p) > 10) {
-				PRINTF("\nThe node ");
-				PRINT6ADDR(trustAddress);
+				PRINTF("\nThe node %i", endOfIp);
 				PRINTF(" is malicious! REMOVE IT!!\n\n");
 			
 			}
@@ -279,12 +266,12 @@ PROCESS_THREAD(udp_server_process, ev, data)
       PRINTF("Initiaing global repair\n");
       rpl_repair_root(RPL_DEFAULT_INSTANCE);
     }
-    if(!(endOfIp < 0)) {
-		// PRINTF("SERVER RECEIVED TRUST!! Received TRUST!!  %i ", endOfIp);
-		// PRINT6ADDR(&trustAddress);
-		// PRINTF("\n\n");
-		reactOnTrustValue(&trustAddress, negative_value, positive_value, endOfIp);
+    if(!(new_data < 0)) {
 
+		reactOnTrustValue(negative_value, positive_value, endOfIp);
+
+		// printf("new_data = -1");
+		new_data = -1;
 		endOfIp = -1;
 		negative_value = 0;
 		positive_value = 0;

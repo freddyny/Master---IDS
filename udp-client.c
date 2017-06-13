@@ -36,7 +36,6 @@
 #include "powertrace.h"
 #include "net/ip/uip-udp-packet.h"
 #include "sys/ctimer.h"
-#include "/home/user/Documents/IDS/udp-client.h"
 
 #ifdef WITH_COMPOWER
 #include "powertrace.h"
@@ -53,7 +52,7 @@
 #include "net/ip/uip-debug.h"
 
 #ifndef PERIOD
-#define PERIOD 60
+#define PERIOD 120
 #endif
 
 #define START_INTERVAL		(15 * CLOCK_SECOND)
@@ -63,7 +62,6 @@
 
 static struct uip_udp_conn *client_conn;
 static uip_ipaddr_t server_ipaddr;
-int ownIp;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(udp_client_process, "UDP client process");
@@ -105,18 +103,12 @@ print_local_addresses(void)
 {
   int i;
   uint8_t state;
-  uip_ipaddr_t *ipaddr;
-  uip_ipaddr_t ip;
   PRINTF("Client IPv6 addresses: ");
   for(i = 0; i < UIP_DS6_ADDR_NB; i++) {
     state = uip_ds6_if.addr_list[i].state;
     if(uip_ds6_if.addr_list[i].isused &&
        (state == ADDR_TENTATIVE || state == ADDR_PREFERRED)) {
       PRINT6ADDR(&uip_ds6_if.addr_list[i].ipaddr);
-      ipaddr = &uip_ds6_if.addr_list[i].ipaddr;
-      ip = *ipaddr;
-      ownIp = ip.u8[sizeof(ip.u8) - 1];
-      PRINTF("\n%i\n", ownIp);
       /* hack to make address "final" */
       if (state == ADDR_TENTATIVE) {
 	uip_ds6_if.addr_list[i].state = ADDR_PREFERRED;
@@ -188,18 +180,13 @@ PROCESS_THREAD(udp_client_process, ev, data)
   PRINT6ADDR(&client_conn->ripaddr);
   PRINTF(" local/remote port %u/%u\n",
 	UIP_HTONS(client_conn->lport), UIP_HTONS(client_conn->rport));
-  srand(ownIp);
 
 #if WITH_COMPOWER
   powertrace_sniff(POWERTRACE_ON);
 #endif
-  int r = rand() % 120;
-  if (r < 0) {
-	r = r + 120;
-  }  
-  printf("Random numbver: %i, %i, r+SEND = %i\n", r, ownIp, (r*CLOCK_SECOND)+SEND_INTERVAL);
-  etimer_set(&periodic, (r*CLOCK_SECOND) + SEND_INTERVAL);
-  // powertrace_start(CLOCK_SECOND * 10); 
+
+  etimer_set(&periodic, SEND_INTERVAL);
+  powertrace_start(CLOCK_SECOND * 10); 
 
   while(1) {
     PROCESS_YIELD();
@@ -209,9 +196,6 @@ PROCESS_THREAD(udp_client_process, ev, data)
     
     if(etimer_expired(&periodic)) {
       etimer_reset(&periodic);
-	  // sett inn output_tru kall!
-	  tru_output(server_ipaddr);
-
       ctimer_set(&backoff_timer, SEND_TIME, send_packet, NULL);
 
 #if WITH_COMPOWER
